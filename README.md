@@ -41,7 +41,7 @@ Este exemplo mostra como você pode utilizar o sistema ODSYS para monitorar a di
 ## **Instalação**
 
 1. Clone ou baixe o repositório.
-2. Inclua o arquivo `odsys.inc` no seu projeto SA-MP.
+2. Inclua o arquivo `odsys.inc` no seu projeto Open.MP.
 3. Chame as funções de `odsys` conforme necessário no seu script.
 
 ```pawn
