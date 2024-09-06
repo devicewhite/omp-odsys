@@ -165,7 +165,7 @@ stock bool:ResetVehicleDistance(vehicleid)
 // Função: SetVehicleDistance
 // Descrição: Define a distância percorrida por um veículo para um valor específico.
 // ==============================================
-stock SetVehicleDistance(vehicleid, Float:distance)
+stock bool:SetVehicleDistance(vehicleid, Float:distance)
 {
 	if(IsValidVehicle(vehicleid)) // Verifica se o veículo é válido
 	{
