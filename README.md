@@ -23,6 +23,10 @@ O sistema utiliza callbacks nativos e timers para rastrear a posição dos veíc
 - `bool:DisableVehicleTracking(vehicleid)`: Desabilita o rastreamento de um veículo.
 - `bool:EnableVehicleTracking(vehicleid)`: Habilita o rastreamento de um veículo.
 
+### **Principais Definições**
+- `ODSYS_FRAMERATE`: Taxa de atualização do sistema em milissegundos. (Padrão: 250ms)
+- `ODSYS_DEFAULT_MODE`: Define se veículos serão rastreados ao spawnar. (Padrão: false)
+
 ## **Exemplo de Uso**
 
 ```pawn
