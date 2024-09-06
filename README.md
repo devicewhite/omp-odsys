@@ -17,7 +17,11 @@ O sistema utiliza callbacks nativos e timers para rastrear a posição dos veíc
 - `Float:GetVehicleMeters(vehicleid)`: Retorna a distância percorrida pelo veículo em metros.
 - `Float:GetVehicleKilometers(vehicleid)`: Retorna a distância percorrida pelo veículo em quilômetros.
 - `Float:GetVehicleMiles(vehicleid)`: Retorna a distância percorrida pelo veículo em milhas.
-- `bool:ResetVehicleMeters(vehicleid)`: Reseta a distância percorrida pelo veículo para `0.0`.
+- `bool:ResetVehicleDistance(vehicleid)`: Reseta a distância percorrida pelo veículo para `0.0`.
+- `bool:SetVehicleDistance(vehicleid, Float:distance)`: Define a distância percorrida pelo veículo.
+- `bool:IsVehicleBeingTracked(vehicleid)`: Verifica se um veículo está sendo rastreado pelo sistema.
+- `bool:DisableVehicleTracking(vehicleid)`: Desabilita o rastreamento de um veículo.
+- `bool:EnableVehicleTracking(vehicleid)`: Habilita o rastreamento de um veículo.
 
 ## **Exemplo de Uso**
 
