@@ -1,64 +1,79 @@
 // ==============================================
-// Project: Optmized Distance System (ODSYS)
-// Date: 02/SET/2024 14:04:50 BRT
+// Project: Optimized Distance System (ODSYS)
+// Date: 05/SET/2024 23:55:19 BRT
 // Author: DeviceBlack
 // ==============================================
 
 #if defined _INC_a_samp
-	#error Biblioteca suportada apenas no Open.MP!
+	#error Esta biblioteca é suportada apenas no Open.MP!
 #endif
 
-#include <open.mp> // Inclui a biblioteca principal do Open Multiplayer (OpenMP)
+#include <open.mp> // Inclui a biblioteca principal do Open Multiplayer (Open.MP)
 
 #if !defined ODSYS_FRAMERATE
-	#define ODSYS_FRAMERATE	(250)
+	#define ODSYS_FRAMERATE (250) // Taxa de atualização do sistema em milissegundos
 #endif
 
-static enum METER_INFO
+#if !defined ODSYS_DEFAULT_MODE
+	#define ODSYS_DEFAULT_MODE true // Define se o modo padrão está ativado
+#endif
+
+#if !defined ODSYS_MILES
+	#define ODSYS_MILES (0.000621) // Fator de conversão de metros para milhas
+#endif
+
+#if !defined ODSYS_KILOMETERS
+	#define ODSYS_KILOMETERS (0.001) // Fator de conversão de metros para quilômetros
+#endif
+
+// Enum para armazenar informações do veículo
+static enum VEHICLE_INFO
 {
-	Float:f_posx,  // Posição X do veículo
-	Float:f_posy,  // Posição Y do veículo
-	Float:f_posz,  // Posição Z do veículo
-	Float:f_meter  // Distância percorrida em metros
+	Float:f_posx,    // Posição X do veículo
+	Float:f_posy,    // Posição Y do veículo
+	Float:f_posz,    // Posição Z do veículo
+	Float:f_distance // Distância percorrida em metros
 };
 
+// Variáveis globais
 static
-	i_timer,			// ID do timer
-	i_vehicles,		  // Número de veículos ativos atualmente
-	a_vehicle[MAX_VEHICLES], // Array que armazena os IDs dos veículos ativos
-	a_info[MAX_VEHICLES][METER_INFO]; // Array para armazenar informações de posição e distância para cada veículo
+	i_timer,                             // ID do timer
+	i_vehicles,                          // Número de veículos ativos no momento
+	a_vehicle[MAX_VEHICLES],             // Array para armazenar IDs dos veículos ativos
+	a_info[MAX_VEHICLES][VEHICLE_INFO];  // Array para armazenar posição e distância de cada veículo
 
 // ==============================================
 // Função: OnVehicleSpawn
-// Descrição: Callback que é executado quando um veículo é spawnado no servidor.
-// Parâmetro:
-//   - vehicleid: ID do veículo que foi spawnado.
-// Retorno: 
-//   - Retorna 1 para indicar que o veículo foi spawnado corretamente, 
-//	 ou chama outra função se definida por outro script.
+// Descrição: Callback executada quando um veículo é spawnado no servidor.
 // ==============================================
 public OnVehicleSpawn(vehicleid)
 {
-	// Atualiza a lista de veículos ativos e o número de veículos ativos.
-	i_vehicles = GetVehicles(a_vehicle);
+	if(ODSYS_DEFAULT_MODE)
+	{
+		// Atualiza a lista de veículos ativos e o número de veículos.
+		i_vehicles = GetVehicles(a_vehicle);
+	}
 
-	// Inicializa a distância percorrida pelo veículo como 0 e armazena a posição inicial.
-	a_info[vehicleid][f_meter] = 0.0;
-	GetVehiclePos(vehicleid, a_info[vehicleid][f_posx], a_info[vehicleid][f_posy], a_info[vehicleid][f_posz]);
+	// Inicializa a distância percorrida pelo veículo e armazena a posição inicial.
+	if(IsVehicleBeingTracked(vehicleid))
+	{
+		a_info[vehicleid][f_distance] = 0.0;
+		GetVehiclePos(vehicleid, a_info[vehicleid][f_posx], a_info[vehicleid][f_posy], a_info[vehicleid][f_posz]);
 
-	// Inicia o timer se ainda não estiver ativo e este for o primeiro veículo.
-	if(i_vehicles == 1 && !i_timer)
-		i_timer = SetTimer("UpdateVehicleMeter", ODSYS_FRAMERATE, true);
+		// Inicia o timer se for o primeiro veículo e o timer ainda não estiver ativo.
+		if(i_vehicles == 1 && !i_timer)
+			i_timer = SetTimer("UpdateVehicleDistance", ODSYS_FRAMERATE, true);
+	}
 
-	// Verifica se há uma função definida para ODSYS_VehicleSpawn. Se sim, chama-a.
+	// Verifica se ODSYS_VehicleSpawn está definido. Se estiver, chama essa função.
 	#if defined ODSYS_VehicleSpawn
 		return ODSYS_VehicleSpawn(vehicleid);
 	#else
-		return 1; // Caso contrário, retorna 1 indicando que o veículo foi spawnado com sucesso.
+		return 1; // Retorna 1 indicando que o veículo foi spawnado com sucesso.
 	#endif
 }
 
-// Manipulação para garantir compatibilidade com outros scripts que usam OnVehicleSpawn.
+// Compatibilidade com outros scripts que utilizam OnVehicleSpawn.
 #if defined ALS_OnVehicleSpawn
 	#undef OnVehicleSpawn
 #else
@@ -70,104 +85,152 @@ public OnVehicleSpawn(vehicleid)
 #endif
 
 // ==============================================
-// Forward: UpdateVehicleMeter
-// Descrição: Função forward para declarar a função UpdateVehicleMeter antes de sua implementação.
+// Forward: UpdateVehicleDistance
+// Descrição: Declaração da função UpdateVehicleDistance antes de sua implementação.
 // ==============================================
-forward UpdateVehicleMeter();
+forward UpdateVehicleDistance();
 
 // ==============================================
-// Função: UpdateVehicleMeter
-// Descrição: Atualiza as distâncias percorridas por todos os veículos ativos.
-// Retorno: 
-//   - Nenhum retorno. Realiza atualizações internas das posições e distâncias.
+// Função: UpdateVehicleDistance
+// Descrição: Atualiza a distância percorrida por todos os veículos ativos.
 // ==============================================
-public UpdateVehicleMeter()
+public UpdateVehicleDistance()
 {
-	new bool:resync = false; // Inicializa a variável resync como falsa
-
-	// Loop para percorrer todos os veículos ativos e atualizar suas distância
-	for(new i, v; i < i_vehicles; i++)
+	if(i_vehicles)
 	{
-		v = a_vehicle[i]; // Obtém o ID do veículo
-
-		// Verifica se o veículo ainda é válido
-		if(IsValidVehicle(v))
+		// Loop para atualizar a distância de todos os veículos ativos
+		for(new i, v; i < i_vehicles; i++)
 		{
-			// Atualiza a distância e a posição do veículo
-			a_info[v][f_meter] += GetVehicleDistanceFromPoint(v, a_info[v][f_posx], a_info[v][f_posy], a_info[v][f_posz]);
-			GetVehiclePos(v, a_info[v][f_posx], a_info[v][f_posy], a_info[v][f_posz]);
+			v = a_vehicle[i]; // ID do veículo
+
+			// Verifica se o veículo ainda é válido
+			if(IsValidVehicle(v))
+			{
+				// Atualiza a distância e posição do veículo
+				a_info[v][f_distance] += GetVehicleDistanceFromPoint(v, a_info[v][f_posx], a_info[v][f_posy], a_info[v][f_posz]);
+				GetVehiclePos(v, a_info[v][f_posx], a_info[v][f_posy], a_info[v][f_posz]);
+			}
+			else
+			{
+				// Remove o veículo inválido da lista e atualiza os índices restantes
+				for(new j = i; j < i_vehicles; j++) a_vehicle[j] = a_vehicle[j + 1];
+				i_vehicles--;
+			}
 		}
-		else resync = true; // Marca que uma resincronização é necessária se o veículo for inválido
 	}
-
-	// Se for necessário resincronizar (ex.: veículos removidos)
-	if(resync)
+	else
 	{
-		i_vehicles = GetVehicles(a_vehicle); // Atualiza a lista de veículos ativos
-		
-		// Se não houver mais veículos ativos, mata o timer para evitar execuções desnecessárias
-		if(i_vehicles == 0 && i_timer)
-		{
-			KillTimer(i_timer);
-			i_timer = 0; // Reseta o ID do timer para indicar que não está mais ativo
-		}
+		// Se não houver veículos ativos, mata o timer e reseta o ID do timer
+		i_timer = KillTimer(i_timer);
 	}
 }
 
 // ==============================================
-// Função: GetVehicleMeters
+// Função: GetVehicleDistanceMeters
 // Descrição: Retorna a distância percorrida por um veículo em metros.
-// Parâmetro:
-//   - vehicleid: ID do veículo do qual deseja obter a distância percorrida.
-// Retorno: 
-//   - Distância percorrida em metros como um valor float.
 // ==============================================
-stock Float:GetVehicleMeters(vehicleid)
+stock Float:GetVehicleDistanceMeters(vehicleid)
 {
-	return a_info[vehicleid][f_meter];
+	return a_info[vehicleid][f_distance]; // Obtem a distancia em metros
 }
 
 // ==============================================
-// Função: GetVehicleKilometers
+// Função: GetVehicleDistanceKilometers
 // Descrição: Retorna a distância percorrida por um veículo em quilômetros.
-// Parâmetro:
-//   - vehicleid: ID do veículo do qual deseja obter a distância percorrida.
-// Retorno: 
-//   - Distância percorrida em quilômetros como um valor float.
 // ==============================================
-stock Float:GetVehicleKilometers(vehicleid)
+stock Float:GetVehicleDistanceKilometers(vehicleid)
 {
-	return (a_info[vehicleid][f_meter] * 0.001); // Converte metros para quilômetros
+	return (a_info[vehicleid][f_distance] * ODSYS_KILOMETERS); // Converte metros para quilômetros
 }
 
 // ==============================================
-// Função: GetVehicleMiles
+// Função: GetVehicleDistanceMiles
 // Descrição: Retorna a distância percorrida por um veículo em milhas.
-// Parâmetro:
-//   - vehicleid: ID do veículo do qual deseja obter a distância percorrida.
-// Retorno: 
-//   - Distância percorrida em milhas como um valor float.
 // ==============================================
-stock Float:GetVehicleMiles(vehicleid)
+stock Float:GetVehicleDistanceMiles(vehicleid)
 {
-	return (a_info[vehicleid][f_meter] * 0.000621); // Converte metros para milhas
+	return (a_info[vehicleid][f_distance] * ODSYS_MILES); // Converte metros para milhas
 }
 
 // ==============================================
-// Função: ResetVehicleMeters
+// Função: ResetVehicleDistance
 // Descrição: Reseta a distância percorrida por um veículo para 0.
-// Parâmetro:
-//   - vehicleid: ID do veículo cuja distância deseja resetar.
-// Retorno: 
-//   - Retorna true se o veículo for válido e a distância for resetada com sucesso.
-//   - Retorna false se o veículo for inválido.
 // ==============================================
-stock bool:ResetVehicleMeters(vehicleid)
+stock bool:ResetVehicleDistance(vehicleid)
+{
+	return SetVehicleDistance(vehicleid, 0.0); // Chama SetVehicleDistance para resetar
+}
+
+// ==============================================
+// Função: SetVehicleDistance
+// Descrição: Define a distância percorrida por um veículo para um valor específico.
+// ==============================================
+stock SetVehicleDistance(vehicleid, Float:distance)
 {
 	if(IsValidVehicle(vehicleid)) // Verifica se o veículo é válido
 	{
-		a_info[vehicleid][f_meter] = 0.0; // Reseta a distância percorrida
-		return true; // Sucesso na operação
+		a_info[vehicleid][f_distance] = distance; // Define a nova distância
+		return true; // Se a distancia for definida retorna true
 	}
-	return false; // Falha na operação (veículo inválido)
+	return false; // Se a distancia nao for definida retorna false
+}
+
+// ==============================================
+// Função: IsVehicleBeingTracked
+// Descrição: Verifica se um veículo está sendo rastreado pelo sistema.
+// ==============================================
+stock bool:IsVehicleBeingTracked(vehicleid)
+{
+	for (new i; i < i_vehicles; i++)
+		if(a_vehicle[i] == vehicleid) return true; // Se o veículo está na lista, retorna verdadeiro
+
+	return false; // Se não está na lista, retorna falso
+}
+
+// ==============================================
+// Função: DisableVehicleTracking
+// Descrição: Desabilita o rastreamento de um veículo.
+// ==============================================
+stock bool:DisableVehicleTracking(vehicleid)
+{
+	new bool:removed;
+	if(IsValidVehicle(vehicleid)) // Verifica se o veículo é válido
+	{
+		// Loop para remover o veículo da lista
+		for(new i; i < i_vehicles; i++)
+		{
+			if(removed) a_vehicle[i] = a_vehicle[i + 1]; // Reorganiza a lista após remoção
+			else if(a_vehicle[i] == vehicleid) // Se encontrar o veículo
+			{
+				a_vehicle[i] = a_vehicle[i + 1]; // Remove o veículo
+				removed = true;
+			}
+		}
+		
+		if(removed) i_vehicles--; // Diminui o número de veículos se foi removido
+	}
+	return removed; // Se o veiculo foi removido retorna true, senao retorna false
+}
+
+// ==============================================
+// Função: EnableVehicleTracking
+// Descrição: Habilita o rastreamento de um veículo.
+// ==============================================
+stock bool:EnableVehicleTracking(vehicleid)
+{
+	// Verifica se o veículo é válido e se ainda não está sendo rastreado
+	if(IsValidVehicle(vehicleid) && !IsVehicleBeingTracked(vehicleid))
+	{
+		if(i_vehicles < MAX_VEHICLES) // Verifica se o limite de veículos não foi atingido
+		{
+			a_vehicle[i_vehicles++] = vehicleid; // Adiciona o veículo à lista
+
+			// Se o timer não estiver ativo, o inicia
+			if(!i_timer)
+				i_timer = SetTimer("UpdateVehicleDistance", ODSYS_FRAMERATE, true);
+
+			return true; // Se o veiculo foi adicionado retorna true
+		}
+	}
+	return false; // Se o veiculo nao foi adicionado retorna false
 }
